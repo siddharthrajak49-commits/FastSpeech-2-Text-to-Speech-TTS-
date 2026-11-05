@@ -189,6 +189,7 @@ def train():
             model.train()
             for batch in train_loader:
                 step += 1
+                batch = [b.to(device) if isinstance(b, torch.Tensor) else b for b in batch]
                 (
                     _,
                     _,
@@ -202,7 +203,7 @@ def train():
                     p_targets,
                     e_targets,
                     d_targets,
-                ) = [b.to(device) if isinstance(b, torch.Tensor) else b for b in batch]
+                ) = batch
 
                 optimizer.zero_grad()
                 output = model(
@@ -249,6 +250,7 @@ def train():
                     val_mel_losses = []
                     with torch.no_grad():
                         for v_batch in val_loader:
+                            v_batch = [b.to(device) if isinstance(b, torch.Tensor) else b for b in v_batch]
                             (
                                 _,
                                 _,
@@ -262,7 +264,7 @@ def train():
                                 v_pt,
                                 v_et,
                                 v_dt,
-                            ) = [b.to(device) if isinstance(b, torch.Tensor) else b for b in v_batch]
+                            ) = v_batch
 
                             v_out = model(
                                 v_spk,
