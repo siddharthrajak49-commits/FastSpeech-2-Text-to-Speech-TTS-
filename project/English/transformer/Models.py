@@ -79,7 +79,7 @@ class Encoder(nn.Module):
         slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
 
         # -- Forward
-        if not self.training and src_seq.shape[1] > self.max_seq_len:
+        if src_seq.shape[1] > self.max_seq_len:
             enc_output = self.src_word_emb(src_seq) + get_sinusoid_encoding_table(
                 src_seq.shape[1], self.d_model
             )[: src_seq.shape[1], :].unsqueeze(0).expand(batch_size, -1, -1).to(
@@ -142,7 +142,7 @@ class Decoder(nn.Module):
         batch_size, max_len = enc_seq.shape[0], enc_seq.shape[1]
 
         # -- Forward
-        if not self.training and enc_seq.shape[1] > self.max_seq_len:
+        if enc_seq.shape[1] > self.max_seq_len:
             # -- Prepare masks
             slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
             dec_output = enc_seq + get_sinusoid_encoding_table(
@@ -151,15 +151,11 @@ class Decoder(nn.Module):
                 enc_seq.device
             )
         else:
-            max_len = min(max_len, self.max_seq_len)
-
             # -- Prepare masks
             slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
             dec_output = enc_seq[:, :max_len, :] + self.position_enc[
                 :, :max_len, :
             ].expand(batch_size, -1, -1)
-            mask = mask[:, :max_len]
-            slf_attn_mask = slf_attn_mask[:, :, :max_len]
 
         for dec_layer in self.layer_stack:
             dec_output, dec_slf_attn = dec_layer(

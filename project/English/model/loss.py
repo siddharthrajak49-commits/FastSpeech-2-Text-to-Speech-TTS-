@@ -55,8 +55,36 @@ class FastSpeech2Loss(nn.Module):
         duration_targets = duration_targets.to(src_masks.device)
         mel_targets = mel_targets.to(dev)
         log_duration_targets = torch.log(duration_targets.float() + 1)
-        mel_targets = mel_targets[:, : mel_masks.shape[1], :]
-        mel_masks = mel_masks[:, :mel_masks.shape[1]]
+
+        # Softcoded universal alignment of frame-level dimensions
+        common_mel_len = min(
+            mel_masks.shape[1],
+            pitch_predictions.shape[1],
+            energy_predictions.shape[1],
+            mel_predictions.shape[1],
+            postnet_mel_predictions.shape[1],
+            pitch_targets.shape[1],
+            energy_targets.shape[1],
+            mel_targets.shape[1],
+        )
+        mel_masks = mel_masks[:, :common_mel_len]
+        pitch_predictions = pitch_predictions[:, :common_mel_len]
+        energy_predictions = energy_predictions[:, :common_mel_len]
+        mel_predictions = mel_predictions[:, :common_mel_len, :]
+        postnet_mel_predictions = postnet_mel_predictions[:, :common_mel_len, :]
+        pitch_targets = pitch_targets[:, :common_mel_len]
+        energy_targets = energy_targets[:, :common_mel_len]
+        mel_targets = mel_targets[:, :common_mel_len, :]
+
+        # Softcoded universal alignment of phoneme-level dimensions
+        common_src_len = min(
+            src_masks.shape[1],
+            log_duration_predictions.shape[1],
+            log_duration_targets.shape[1],
+        )
+        src_masks = src_masks[:, :common_src_len]
+        log_duration_predictions = log_duration_predictions[:, :common_src_len]
+        log_duration_targets = log_duration_targets[:, :common_src_len]
 
         log_duration_targets.requires_grad = False
         pitch_targets.requires_grad = False

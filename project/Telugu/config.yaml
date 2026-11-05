@@ -53,7 +53,7 @@ variance_embedding:
   n_bins: 256
 
 multi_speaker: False
-max_seq_len: 1000
+max_seq_len: 3000
 
 vocoder:
   model: "HiFi-GAN"
