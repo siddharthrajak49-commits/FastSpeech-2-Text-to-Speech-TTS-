@@ -12,6 +12,8 @@ import numpy as np
 import torch
 import soundfile as sf
 import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
 
 from model import FastSpeech2
 from text import text_to_sequence, sequence_to_text
@@ -64,7 +66,7 @@ def plot_variance_features(id_tag, raw_text, phonemes, durations, pitch, energy,
         step_sz = max(1, len(phonemes) // 40)
         plt.xticks(x_indices[::step_sz], [phonemes[i] for i in x_indices[::step_sz]], rotation=75, fontsize=8)
         
-    plt.title(f"[{id_tag}] Telugu Predicted Phoneme Duration (Frames)\n\"{raw_text[:75]}...\"", fontsize=11, fontweight="bold")
+    plt.title(f"[{id_tag}] Telugu Predicted Phoneme Duration (Frames)", fontsize=11, fontweight="bold")
     plt.xlabel("Phonemes", fontsize=10)
     plt.ylabel("Frames (approx 11.6ms / frame)", fontsize=10)
     plt.grid(True, linestyle="--", alpha=0.5)
@@ -75,7 +77,7 @@ def plot_variance_features(id_tag, raw_text, phonemes, durations, pitch, energy,
     # 2. Pitch Plot
     plt.figure(figsize=(12, 4))
     plt.plot(pitch, color="#d62728", linewidth=2.2, label="Predicted F0 Contour")
-    plt.title(f"[{id_tag}] Telugu Predicted Pitch (F0 Contour)\n\"{raw_text[:75]}...\"", fontsize=11, fontweight="bold")
+    plt.title(f"[{id_tag}] Telugu Predicted Pitch (F0 Contour)", fontsize=11, fontweight="bold")
     plt.xlabel("Mel Frames", fontsize=10)
     plt.ylabel("F0 (Hz)", fontsize=10)
     plt.grid(True, linestyle="--", alpha=0.5)
@@ -87,7 +89,7 @@ def plot_variance_features(id_tag, raw_text, phonemes, durations, pitch, energy,
     # 3. Energy Plot
     plt.figure(figsize=(12, 4))
     plt.plot(energy, color="#1f77b4", linewidth=2.0, label="Predicted Energy Envelope")
-    plt.title(f"[{id_tag}] Telugu Predicted Energy Envelope\n\"{raw_text[:75]}...\"", fontsize=11, fontweight="bold")
+    plt.title(f"[{id_tag}] Telugu Predicted Energy Envelope", fontsize=11, fontweight="bold")
     plt.xlabel("Mel Frames", fontsize=10)
     plt.ylabel("L2 Energy (dB / Magnitude)", fontsize=10)
     plt.grid(True, linestyle="--", alpha=0.5)

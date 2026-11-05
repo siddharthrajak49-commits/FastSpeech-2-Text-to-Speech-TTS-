@@ -195,14 +195,19 @@ def extract_features(entries, config, split_name, out_dir):
 
         # 2. Extract Mel-spectrogram
         mel_spectrogram, _ = get_mel_from_wav(wav, stft_fn)
-        mel_spectrogram = mel_spectrogram.numpy()
+        if torch.is_tensor(mel_spectrogram):
+            mel_spectrogram = mel_spectrogram.detach().cpu().numpy()
+        mel_spectrogram = np.asarray(mel_spectrogram)
         np.save(os.path.join(mel_dir, f"{base_name}.npy"), mel_spectrogram)
         n_frames = mel_spectrogram.shape[1]
 
         # 3. Extract Pitch (F0)
         if pw is not None:
-            _f0, t = pw.dio(wav.astype(np.double), sr, frame_period=hop_length / sr * 1000)
-            f0 = pw.stonemask(wav.astype(np.double), _f0, t)
+            try:
+                _f0, t = pw.dio(wav.astype(np.double), sr, frame_period=hop_length / sr * 1000)
+                f0 = pw.stonemask(wav.astype(np.double), _f0, t, sr)
+            except Exception:
+                f0 = np.zeros(n_frames)
         else:
             f0 = np.zeros(n_frames)
 

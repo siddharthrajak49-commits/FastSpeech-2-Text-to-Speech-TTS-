@@ -184,134 +184,143 @@ def train():
     best_val_loss = float("inf")
 
     print(f"Beginning training for {epochs} epochs...")
-    for epoch in range(1, epochs + 1):
-        model.train()
-        for batch in train_loader:
-            step += 1
-            (
-                _,
-                _,
-                speakers,
-                texts,
-                src_lens,
-                max_src_len,
-                mels,
-                mel_lens,
-                max_mel_len,
-                p_targets,
-                e_targets,
-                d_targets,
-            ) = [b.to(device) if isinstance(b, torch.Tensor) else b for b in batch]
+    try:
+        for epoch in range(1, epochs + 1):
+            model.train()
+            for batch in train_loader:
+                step += 1
+                (
+                    _,
+                    _,
+                    speakers,
+                    texts,
+                    src_lens,
+                    max_src_len,
+                    mels,
+                    mel_lens,
+                    max_mel_len,
+                    p_targets,
+                    e_targets,
+                    d_targets,
+                ) = [b.to(device) if isinstance(b, torch.Tensor) else b for b in batch]
 
-            optimizer.zero_grad()
-            output = model(
-                speakers,
-                texts,
-                src_lens,
-                max_src_len,
-                mels,
-                mel_lens,
-                max_mel_len,
-                p_targets,
-                e_targets,
-                d_targets,
-            )
-
-            total_loss, mel_loss, postnet_loss, p_loss, e_loss, d_loss = loss_fn(
-                batch[2:], output
-            )
-
-            total_loss.backward()
-            nn.utils.clip_grad_norm_(model.parameters(), config["train"]["grad_clip_thresh"])
-            optimizer.step()
-
-            if step % config["train"]["log_step"] == 0:
-                print(
-                    f"Epoch [{epoch}/{epochs}] Step [{step}]: "
-                    f"Total Loss: {total_loss.item():.4f} | "
-                    f"Mel: {mel_loss.item():.4f} | "
-                    f"Dur: {d_loss.item():.4f} | "
-                    f"Pitch: {p_loss.item():.4f} | "
-                    f"Energy: {e_loss.item():.4f}"
+                optimizer.zero_grad()
+                output = model(
+                    speakers,
+                    texts,
+                    src_lens,
+                    max_src_len,
+                    mels,
+                    mel_lens,
+                    max_mel_len,
+                    p_targets,
+                    e_targets,
+                    d_targets,
                 )
-                history["steps"].append(step)
-                history["train_total"].append(total_loss.item())
-                history["train_mel"].append(mel_loss.item())
-                history["train_dur"].append(d_loss.item())
-                history["train_pitch"].append(p_loss.item())
-                history["train_energy"].append(e_loss.item())
 
-            # Validation
-            if step % config["train"]["val_step"] == 0:
-                model.eval()
-                val_losses = []
-                val_mel_losses = []
-                with torch.no_grad():
-                    for v_batch in val_loader:
-                        (
-                            _,
-                            _,
-                            v_spk,
-                            v_txt,
-                            v_slen,
-                            v_mslen,
-                            v_mel,
-                            v_mlen,
-                            v_mmlen,
-                            v_pt,
-                            v_et,
-                            v_dt,
-                        ) = [b.to(device) if isinstance(b, torch.Tensor) else b for b in v_batch]
+                total_loss, mel_loss, postnet_loss, p_loss, e_loss, d_loss = loss_fn(
+                    batch[2:], output
+                )
 
-                        v_out = model(
-                            v_spk,
-                            v_txt,
-                            v_slen,
-                            v_mslen,
-                            v_mel,
-                            v_mlen,
-                            v_mmlen,
-                            v_pt,
-                            v_et,
-                            v_dt,
+                total_loss.backward()
+                nn.utils.clip_grad_norm_(model.parameters(), config["train"]["grad_clip_thresh"])
+                optimizer.step()
+
+                if step % config["train"]["log_step"] == 0:
+                    print(
+                        f"Epoch [{epoch}/{epochs}] Step [{step}]: "
+                        f"Total Loss: {total_loss.item():.4f} | "
+                        f"Mel: {mel_loss.item():.4f} | "
+                        f"Dur: {d_loss.item():.4f} | "
+                        f"Pitch: {p_loss.item():.4f} | "
+                        f"Energy: {e_loss.item():.4f}"
+                    )
+                    history["steps"].append(step)
+                    history["train_total"].append(total_loss.item())
+                    history["train_mel"].append(mel_loss.item())
+                    history["train_dur"].append(d_loss.item())
+                    history["train_pitch"].append(p_loss.item())
+                    history["train_energy"].append(e_loss.item())
+
+                # Validation
+                if step % config["train"]["val_step"] == 0:
+                    model.eval()
+                    val_losses = []
+                    val_mel_losses = []
+                    with torch.no_grad():
+                        for v_batch in val_loader:
+                            (
+                                _,
+                                _,
+                                v_spk,
+                                v_txt,
+                                v_slen,
+                                v_mslen,
+                                v_mel,
+                                v_mlen,
+                                v_mmlen,
+                                v_pt,
+                                v_et,
+                                v_dt,
+                            ) = [b.to(device) if isinstance(b, torch.Tensor) else b for b in v_batch]
+
+                            v_out = model(
+                                v_spk,
+                                v_txt,
+                                v_slen,
+                                v_mslen,
+                                v_mel,
+                                v_mlen,
+                                v_mmlen,
+                                v_pt,
+                                v_et,
+                                v_dt,
+                            )
+                            v_total, v_mel_l, _, _, _, _ = loss_fn(v_batch[2:], v_out)
+                            val_losses.append(v_total.item())
+                            val_mel_losses.append(v_mel_l.item())
+
+                    avg_val_loss = float(np.mean(val_losses))
+                    avg_val_mel = float(np.mean(val_mel_losses))
+                    print(f"-- Validation Loss at Step {step}: {avg_val_loss:.4f} (Mel: {avg_val_mel:.4f}) --")
+
+                    history["val_steps"].append(step)
+                    history["val_total"].append(avg_val_loss)
+                    history["val_mel"].append(avg_val_mel)
+
+                    plot_loss_curves(history, results_dir)
+
+                    if avg_val_loss < best_val_loss:
+                        best_val_loss = avg_val_loss
+                        torch.save(
+                            {"step": step, "model": model.state_dict(), "optimizer": optimizer.state_dict()},
+                            os.path.join(ckpt_dir, "best_model.pt"),
                         )
-                        v_total, v_mel_l, _, _, _, _ = loss_fn(v_batch[2:], v_out)
-                        val_losses.append(v_total.item())
-                        val_mel_losses.append(v_mel_l.item())
 
-                avg_val_loss = float(np.mean(val_losses))
-                avg_val_mel = float(np.mean(val_mel_losses))
-                print(f"-- Validation Loss at Step {step}: {avg_val_loss:.4f} (Mel: {avg_val_mel:.4f}) --")
+                    model.train()
 
-                history["val_steps"].append(step)
-                history["val_total"].append(avg_val_loss)
-                history["val_mel"].append(avg_val_mel)
-
-                plot_loss_curves(history, results_dir)
-
-                if avg_val_loss < best_val_loss:
-                    best_val_loss = avg_val_loss
+                # Save regular checkpoint
+                if step % config["train"]["save_step"] == 0:
                     torch.save(
                         {"step": step, "model": model.state_dict(), "optimizer": optimizer.state_dict()},
-                        os.path.join(ckpt_dir, "best_model.pt"),
+                        os.path.join(ckpt_dir, f"checkpoint_{step}.pt"),
                     )
-
-                model.train()
-
-            # Save regular checkpoint
-            if step % config["train"]["save_step"] == 0:
+    except KeyboardInterrupt:
+        print(f"\nTraining gracefully paused by user at step {step}.")
+    finally:
+        if step > 0:
+            torch.save(
+                {"step": step, "model": model.state_dict(), "optimizer": optimizer.state_dict()},
+                os.path.join(ckpt_dir, "final_model.pt"),
+            )
+            if not os.path.exists(os.path.join(ckpt_dir, "best_model.pt")):
                 torch.save(
                     {"step": step, "model": model.state_dict(), "optimizer": optimizer.state_dict()},
-                    os.path.join(ckpt_dir, f"checkpoint_{step}.pt"),
+                    os.path.join(ckpt_dir, "best_model.pt"),
                 )
-
-    # Final save & plot
-    torch.save(
-        {"step": step, "model": model.state_dict(), "optimizer": optimizer.state_dict()},
-        os.path.join(ckpt_dir, "final_model.pt"),
-    )
-    plot_loss_curves(history, results_dir)
-    print("Training successfully finished.")
+            if len(history["steps"]) > 0:
+                plot_loss_curves(history, results_dir)
+            print(f"Latest model checkpoint & loss curves saved for step {step}.")
 
 
 if __name__ == "__main__":
