@@ -154,3 +154,4 @@ def decompose_telugu_text(text: str) -> list:
         i += 1
         
     return tokens
+

@@ -15,3 +15,4 @@ indic-nlp-library>=0.92
 reportlab>=4.0.0
 requests>=2.28.0
 tgt>=1.4.4
+
