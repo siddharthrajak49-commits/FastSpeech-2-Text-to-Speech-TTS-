@@ -1,0 +1,28 @@
+# Python virtual environment
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Large raw datasets cache
+*.parquet
+raw_data/
+downloads/
+.cache/
+.ipynb_checkpoints/
+
+# System logs
+*.log
