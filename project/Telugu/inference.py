@@ -162,12 +162,19 @@ def synthesize():
 
             # Extract predicted curves for plotting
             pred_dur = d_rounded[0, :len(phone_ids)].cpu().numpy()
-            pred_pitch = p_predictions[0, :len(phone_ids)].cpu().numpy()
-            pred_energy = e_predictions[0, :len(phone_ids)].cpu().numpy()
-
             dur_frames = np.maximum(1, np.round(pred_dur)).astype(int)
-            pitch_expanded = np.repeat(pred_pitch, dur_frames)
-            energy_expanded = np.repeat(pred_energy, dur_frames)
+
+            if p_predictions.shape[1] >= mel_lens[0].item():
+                pitch_expanded = p_predictions[0, :mel_lens[0].item()].cpu().numpy()
+            else:
+                pred_pitch = p_predictions[0, :len(phone_ids)].cpu().numpy()
+                pitch_expanded = np.repeat(pred_pitch, dur_frames)
+
+            if e_predictions.shape[1] >= mel_lens[0].item():
+                energy_expanded = e_predictions[0, :mel_lens[0].item()].cpu().numpy()
+            else:
+                pred_energy = e_predictions[0, :len(phone_ids)].cpu().numpy()
+                energy_expanded = np.repeat(pred_energy, dur_frames)
 
             plot_variance_features(
                 id_tag, raw_text, phone_syms, pred_dur, pitch_expanded, energy_expanded, out_root

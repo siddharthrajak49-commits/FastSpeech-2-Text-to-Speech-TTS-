@@ -24,10 +24,10 @@ preprocessing:
     mel_fmin: 0
     mel_fmax: 8000
   pitch:
-    feature: "phoneme_level"
+    feature: "frame_level"
     normalization: True
   energy:
-    feature: "phoneme_level"
+    feature: "frame_level"
     normalization: True
 
 transformer:

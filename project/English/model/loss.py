@@ -17,6 +17,12 @@ class FastSpeech2Loss(nn.Module):
         self.mae_loss = nn.L1Loss()
 
     def forward(self, inputs, predictions):
+        if len(inputs) == 12:
+            targets = inputs[6:]
+        elif len(inputs) == 10:
+            targets = inputs[4:]
+        else:
+            targets = inputs[-6:]
         (
             mel_targets,
             _,
@@ -24,7 +30,7 @@ class FastSpeech2Loss(nn.Module):
             pitch_targets,
             energy_targets,
             duration_targets,
-        ) = inputs[6:]
+        ) = targets
         (
             mel_predictions,
             postnet_mel_predictions,
