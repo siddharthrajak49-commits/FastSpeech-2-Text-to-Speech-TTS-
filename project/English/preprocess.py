@@ -245,7 +245,8 @@ def extract_features(entries, config, split_name, out_dir):
         durations[:remainder] += 1
         np.save(os.path.join(duration_dir, f"{base_name}.npy"), durations)
 
-        manifest_lines.append(f"{base_name}|{item['speaker']}|{' '.join(map(str, phone_ids))}|{raw_text}\n")
+        cleaned_raw_text = raw_text.replace("\n", " ").replace("\r", " ").replace("|", " ").strip()
+        manifest_lines.append(f"{base_name}|{item['speaker']}|{' '.join(map(str, phone_ids))}|{cleaned_raw_text}\n")
 
     manifest_path = os.path.join(out_dir, f"{split_name}.txt")
     with open(manifest_path, "w", encoding="utf-8") as f:

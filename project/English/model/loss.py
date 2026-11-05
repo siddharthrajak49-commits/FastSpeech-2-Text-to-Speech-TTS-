@@ -1,9 +1,11 @@
+import os
+import json
 import torch
 import torch.nn as nn
 
 
 class FastSpeech2Loss(nn.Module):
-    """ FastSpeech2 Loss """
+    """ FastSpeech2 Loss with z-score pitch/energy standardization """
 
     def __init__(self, preprocess_config, model_config):
         super(FastSpeech2Loss, self).__init__()
@@ -15,6 +17,22 @@ class FastSpeech2Loss(nn.Module):
         ]
         self.mse_loss = nn.MSELoss()
         self.mae_loss = nn.L1Loss()
+
+        stats_path = os.path.join(
+            preprocess_config["path"]["preprocessed_path"], "stats.json"
+        )
+        if os.path.exists(stats_path):
+            with open(stats_path, "r") as f:
+                stats = json.load(f)
+                self.pitch_mean = float(stats["pitch"][2])
+                self.pitch_std = max(float(stats["pitch"][3]), 1.0)
+                self.energy_mean = float(stats["energy"][2])
+                self.energy_std = max(float(stats["energy"][3]), 1.0)
+        else:
+            self.pitch_mean = 0.0
+            self.pitch_std = 1.0
+            self.energy_mean = 0.0
+            self.energy_std = 1.0
 
     def forward(self, inputs, predictions):
         if len(inputs) == 12:
@@ -117,8 +135,14 @@ class FastSpeech2Loss(nn.Module):
         mel_loss = self.mae_loss(mel_predictions, mel_targets)
         postnet_mel_loss = self.mae_loss(postnet_mel_predictions, mel_targets)
 
-        pitch_loss = self.mse_loss(pitch_predictions, pitch_targets)
-        energy_loss = self.mse_loss(energy_predictions, energy_targets)
+        pitch_loss = self.mse_loss(
+            (pitch_predictions - self.pitch_mean) / self.pitch_std,
+            (pitch_targets - self.pitch_mean) / self.pitch_std,
+        )
+        energy_loss = self.mse_loss(
+            (energy_predictions - self.energy_mean) / self.energy_std,
+            (energy_targets - self.energy_mean) / self.energy_std,
+        )
         duration_loss = self.mse_loss(log_duration_predictions, log_duration_targets)
 
         total_loss = (

@@ -14,7 +14,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
 
-from model import FastSpeech2, FastSpeech2Loss
+from model import FastSpeech2, FastSpeech2Loss, ScheduledOptim
 from utils.model import get_param_num
 from utils.tools import pad_1D, pad_2D
 
@@ -24,8 +24,23 @@ class FastSpeechDataset(Dataset):
         self.preprocessed_path = config["path"]["preprocessed_path"]
         self.cleaners = config["preprocessing"]["text"]["text_cleaners"]
 
-        with open(os.path.join(self.preprocessed_path, filename), "r", encoding="utf-8") as f:
-            self.lines = [line.strip().split("|") for line in f if len(line.strip()) > 0]
+        filepath = os.path.join(self.preprocessed_path, filename)
+        valid_lines = []
+        if os.path.exists(filepath):
+            with open(filepath, "r", encoding="utf-8") as f:
+                for line in f:
+                    parts = line.strip().split("|")
+                    if len(parts) >= 4 and len(parts[2].strip()) > 0:
+                        basename = parts[0]
+                        # Check that required feature files exist on disk
+                        if (
+                            os.path.exists(os.path.join(self.preprocessed_path, "mel", f"{basename}.npy"))
+                            and os.path.exists(os.path.join(self.preprocessed_path, "pitch", f"{basename}.npy"))
+                            and os.path.exists(os.path.join(self.preprocessed_path, "energy", f"{basename}.npy"))
+                            and os.path.exists(os.path.join(self.preprocessed_path, "duration", f"{basename}.npy"))
+                        ):
+                            valid_lines.append(parts)
+        self.lines = valid_lines
 
     def __len__(self):
         return len(self.lines)
@@ -33,9 +48,9 @@ class FastSpeechDataset(Dataset):
     def __getitem__(self, idx):
         line = self.lines[idx]
         basename = line[0]
-        speaker = 0
+        speaker = int(line[1]) if line[1].isdigit() else 0
         phone_ids = np.array([int(p) for p in line[2].split()])
-        raw_text = line[3]
+        raw_text = "|".join(line[3:])
 
         mel = np.load(os.path.join(self.preprocessed_path, "mel", f"{basename}.npy"))
         pitch = np.load(os.path.join(self.preprocessed_path, "pitch", f"{basename}.npy"))
@@ -154,13 +169,7 @@ def train():
     loss_fn = FastSpeech2Loss(config, config)
     print(f"Telugu FastSpeech 2 Parameters: {get_param_num(model):,}")
 
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=config["train"]["learning_rate"],
-        betas=config["train"]["betas"],
-        eps=config["train"]["eps"],
-        weight_decay=config["train"]["weight_decay"]
-    )
+    optimizer = ScheduledOptim(model, config, config, current_step=0)
 
     ckpt_dir = config["path"]["checkpoint_path"]
     results_dir = config["path"]["result_path"]
@@ -223,13 +232,19 @@ def train():
                     batch[2:], output
                 )
 
+                if torch.isnan(total_loss):
+                    print(f"Warning: NaN detected in loss at step {step}, skipping backward...")
+                    optimizer.zero_grad()
+                    continue
+
                 total_loss.backward()
                 nn.utils.clip_grad_norm_(model.parameters(), config["train"]["grad_clip_thresh"])
-                optimizer.step()
+                optimizer.step_and_update_lr()
+                optimizer.zero_grad()
 
                 if step % config["train"]["log_step"] == 0:
                     print(
-                        f"Epoch [{epoch}/{epochs}] Step [{step}]: "
+                        f"Telugu Epoch [{epoch}/{epochs}] Step [{step}]: "
                         f"Total Loss: {total_loss.item():.4f} | "
                         f"Mel: {mel_loss.item():.4f} | "
                         f"Dur: {d_loss.item():.4f} | "
@@ -279,12 +294,13 @@ def train():
                                 v_dt,
                             )
                             v_total, v_mel_l, _, _, _, _ = loss_fn(v_batch[2:], v_out)
-                            val_losses.append(v_total.item())
-                            val_mel_losses.append(v_mel_l.item())
+                            if not torch.isnan(v_total):
+                                val_losses.append(v_total.item())
+                                val_mel_losses.append(v_mel_l.item())
 
-                    avg_val_loss = float(np.mean(val_losses))
-                    avg_val_mel = float(np.mean(val_mel_losses))
-                    print(f"-- Validation Loss at Step {step}: {avg_val_loss:.4f} (Mel: {avg_val_mel:.4f}) --")
+                    avg_val_loss = float(np.mean(val_losses)) if len(val_losses) > 0 else 0.0
+                    avg_val_mel = float(np.mean(val_mel_losses)) if len(val_mel_losses) > 0 else 0.0
+                    print(f"-- Telugu Validation Loss at Step {step}: {avg_val_loss:.4f} (Mel: {avg_val_mel:.4f}) --")
 
                     history["val_steps"].append(step)
                     history["val_total"].append(avg_val_loss)
@@ -327,4 +343,3 @@ def train():
 
 if __name__ == "__main__":
     train()
-
