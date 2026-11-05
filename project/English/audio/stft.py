@@ -5,6 +5,12 @@ from scipy.signal import get_window
 from librosa.util import pad_center, tiny
 from librosa.filters import mel as librosa_mel_fn
 
+def safe_pad_center(data, size, axis=-1):
+    try:
+        return pad_center(data, size=size, axis=axis)
+    except TypeError:
+        return pad_center(data, size, axis=axis)
+
 from audio.audio_processing import (
     dynamic_range_compression,
     dynamic_range_decompression,
@@ -39,7 +45,7 @@ class STFT(torch.nn.Module):
             assert filter_length >= win_length
             # get window and zero center pad it to filter_length
             fft_window = get_window(window, win_length, fftbins=True)
-            fft_window = pad_center(fft_window, filter_length)
+            fft_window = safe_pad_center(fft_window, filter_length)
             fft_window = torch.from_numpy(fft_window).float()
 
             # window the bases
@@ -64,9 +70,10 @@ class STFT(torch.nn.Module):
         )
         input_data = input_data.squeeze(1)
 
+        target_device = self.forward_basis.device
         forward_transform = F.conv1d(
-            input_data.cuda(),
-            torch.autograd.Variable(self.forward_basis, requires_grad=False).cuda(),
+            input_data.to(target_device),
+            self.forward_basis,
             stride=self.hop_length,
             padding=0,
         ).cpu()
@@ -142,9 +149,14 @@ class TacotronSTFT(torch.nn.Module):
         self.n_mel_channels = n_mel_channels
         self.sampling_rate = sampling_rate
         self.stft_fn = STFT(filter_length, hop_length, win_length)
-        mel_basis = librosa_mel_fn(
-            sampling_rate, filter_length, n_mel_channels, mel_fmin, mel_fmax
-        )
+        try:
+            mel_basis = librosa_mel_fn(
+                sr=sampling_rate, n_fft=filter_length, n_mels=n_mel_channels, fmin=mel_fmin, fmax=mel_fmax
+            )
+        except TypeError:
+            mel_basis = librosa_mel_fn(
+                sampling_rate, filter_length, n_mel_channels, mel_fmin, mel_fmax
+            )
         mel_basis = torch.from_numpy(mel_basis).float()
         self.register_buffer("mel_basis", mel_basis)
 
