@@ -32,6 +32,27 @@ def load_config(config_path="config.yaml"):
         return yaml.safe_load(f)
 
 
+def extract_audio_data(row):
+    """
+    Universally extracts audio bytes or array from parquet row,
+    handling different column names: audio, audio_filepath, wav, etc.
+    """
+    audio_obj = row.get("audio") if "audio" in row else row.get("audio_filepath")
+    if audio_obj is None:
+        for col in row.index:
+            if any(k in col.lower() for k in ["audio", "sound", "wav"]):
+                audio_obj = row[col]
+                break
+    if isinstance(audio_obj, dict):
+        if "bytes" in audio_obj and audio_obj["bytes"] is not None:
+            return audio_obj["bytes"]
+        elif "array" in audio_obj:
+            return audio_obj
+    elif isinstance(audio_obj, bytes):
+        return audio_obj
+    return None
+
+
 def subsample_indictts(hf_token, output_dir, target_train_sec=18000, target_val_sec=3600):
     """
     Subsamples approximately 5 hours (18,000s) for training
@@ -63,27 +84,42 @@ def subsample_indictts(hf_token, output_dir, target_train_sec=18000, target_val_
         df = table.to_pandas()
 
         for idx, row in df.iterrows():
-            audio_bytes = row["audio"]["bytes"]
-            text = row.get("transcription", row.get("text", "")).strip()
+            audio_data = extract_audio_data(row)
+            if audio_data is None:
+                continue
+
+            text = row.get("text", row.get("transcription", row.get("sentence", "")))
+            if not isinstance(text, str):
+                text = str(text) if text is not None else ""
+            text = text.strip()
             if not text or len(text) < 2:
                 continue
 
             base_name = f"indictts_te_{p_file.split('/')[-1].split('.')[0]}_{idx:05d}"
             wav_path = os.path.join(raw_wav_dir, f"{base_name}.wav")
 
-            with open(wav_path, "wb") as f:
-                f.write(audio_bytes)
+            if isinstance(audio_data, dict) and "array" in audio_data:
+                sf.write(wav_path, audio_data["array"], audio_data.get("sampling_rate", 16000))
+            else:
+                with open(wav_path, "wb") as f:
+                    f.write(audio_data)
 
-            try:
-                info = sf.info(wav_path)
-                duration = info.duration
-            except Exception:
-                os.remove(wav_path)
-                continue
+            duration = row.get("duration")
+            if duration is None or (isinstance(duration, (int, float)) and (np.isnan(duration) or duration <= 0)):
+                try:
+                    info = sf.info(wav_path)
+                    duration = info.duration
+                except Exception:
+                    if os.path.exists(wav_path):
+                        os.remove(wav_path)
+                    continue
+            else:
+                duration = float(duration)
 
             # Filter clean utterance lengths (1.0s to 12.0s)
             if duration < 1.0 or duration > 12.0:
-                os.remove(wav_path)
+                if os.path.exists(wav_path):
+                    os.remove(wav_path)
                 continue
 
             entry = {
